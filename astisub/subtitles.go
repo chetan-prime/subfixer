@@ -124,15 +124,8 @@ func (i Item) String() string {
 	for _, l := range i.Lines {
 		os = append(os, l.String())
 	}
-	return strings.Join(os, " - ")
-}
-
-func (i *Item) Add(d time.Duration) {
-	i.EndAt += d
-	i.StartAt += d
-	if i.StartAt <= 0 {
-		i.StartAt = time.Duration(0)
-	}
+	return strings.Join(os, string(bytesLineSeparator))
+	//return strings.Join(os, " - ")
 }
 
 // Color represents a color

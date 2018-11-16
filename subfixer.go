@@ -2,41 +2,67 @@ package main
 
 import (
 	"./astisub"
+	"errors"
+	"flag"
 	"fmt"
 	"os"
-	"strconv"
-	"time"
+	"strings"
 )
 
+const (
+	DefaultReadingSpeed = 21.0
+	DefaultMinLength = 1.0
+)
+
+func parseFlags() (astisub.CommandParams, error) {
+	filePtr  := flag.String("file", "", "Subtitle Input File (Required)")
+	speedPtr := flag.Float64(	"speed",
+								DefaultReadingSpeed,
+								"Desired Characters Per Second"	)
+	minLengthPtr := flag.Float64(	"min_length",
+									DefaultMinLength,
+									"Minimum Length for each subtitle"	)
+	
+	flag.Parse()
+	
+	res := astisub.CommandParams{ *filePtr, *speedPtr, *minLengthPtr}
+	var err error = nil
+	
+	if res.File=="" {
+		err = errors.New("Input Subtitle file is required")
+	}
+	
+	return res, err
+}
 
 func main() {
-	last_stop := 0.0
-	if len(os.Args) > 4 {
-		fname := os.Args[1]
-		i, _ := strconv.Atoi(os.Args[2])
-		i -= 1
-		
-		start_adj, _ := strconv.ParseInt(os.Args[3], 10, 64)
-		stop_adj, _  := strconv.ParseInt(os.Args[4], 10, 64)
-		
-		last_stop =
-		
+	params, err := parseFlags()
+	
+	if len(os.Args) > 2 {
+		if err != nil {
+			os.Stderr.WriteString(fmt.Sprintf("Error: %s", err))
+			return
+		}
 		// Open
-		s, err := astisub.OpenFile( fname )
+		s, err := astisub.OpenFile( params.File )
 		
 		if err!=nil {
-			fmt.Printf("Error opening %s: %s\n", fname, err)
+			os.Stderr.WriteString(fmt.Sprintf("Error opening %s: %s\n", params.File, err))
 			return
 		}
 		
-		s.Items[i].StartAt += time.Duration(start_adj) * time.Millisecond
-		s.Items[i].EndAt += time.Duration(stop_adj) * time.Millisecond
+		for i:=0; i < len(s.Items); i++ {
+			s.AdjustDuration(i, params)
+		}
 		
-		fmt.Printf("Now saving changes to file %s: ", fname)
-		s.Write(fname)
+		fmt.Printf("Now saving changes to file %s: ", params.File)
+		s.Write(params.File)
 		fmt.Printf("[DONE]\n")
 	} else {
-		fmt.Printf("Format is below :\n%s <filename.srt> <index> <start_adjust> <stop_adjust>\n All adjust entries are in MilliSeconds\n", os.Args[0])
+		avail := fmt.Sprintf("%s: Available parameters are below", os.Args[0])
+		avail += "\n" + strings.Repeat("-", len(avail)) + "\n"
+		os.Stderr.WriteString(avail)
+		flag.PrintDefaults()
 	}
 }
 
