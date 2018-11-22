@@ -12,20 +12,27 @@ import (
 const (
 	DefaultReadingSpeed = 21.0
 	DefaultMinLength = 1.0
+	DefaultSpeedEpsilon = 1.0
 )
 
 func parseFlags() (astisub.CommandParams, error) {
 	filePtr  := flag.String("file", "", "Subtitle Input File (Required)")
+	
 	speedPtr := flag.Float64(	"speed",
 								DefaultReadingSpeed,
 								"Desired Characters Per Second"	)
+	
 	minLengthPtr := flag.Float64(	"min_length",
 									DefaultMinLength,
 									"Minimum Length for each subtitle"	)
 	
+	speedEpsilonPtr := flag.Float64("speed_epsilon",
+									DefaultSpeedEpsilon,
+									"Epsilon in % of Speed value"	)
+	
 	flag.Parse()
 	
-	res := astisub.CommandParams{ *filePtr, *speedPtr, *minLengthPtr}
+	res := astisub.CommandParams{ *filePtr, *speedPtr, *speedEpsilonPtr, *minLengthPtr}
 	var err error = nil
 	
 	if res.File=="" {

@@ -4,11 +4,13 @@ import (
 	"fmt"
 	"math"
 	"time"
+	"../strip"
 )
 
 type CommandParams struct {
 	File		string
 	Speed		float64
+	SpeedEpsilon	float64
 	MinLength	float64
 }
 
@@ -21,8 +23,12 @@ func (i *Item) Add(d time.Duration) {
 }
 
 func (item *Item) GetSpeed() float64 {
-	text := item.String()
-	return float64(len(text)) / item.GetLength()
+	text := strip.StripTags(item.String())
+	length := item.GetLength()
+	line_speed := float64(len(text)) / length
+	
+	fmt.Printf("Read string --> '%s'/length=%g/line_speed=%g\n", text, length, line_speed)
+	return line_speed
 }
 
 func (item *Item) GetLength() float64 {
@@ -33,7 +39,10 @@ func (item *Item) GetExtendBy(params CommandParams) float64 {
 	line_speed := item.GetSpeed()
 	line_time := item.GetLength()
 	
-	extend_by := (line_speed / params.Speed - 1) * line_time
+	desired_speed := params.Speed - (params.Speed * params.SpeedEpsilon / 100.0)
+	
+	extend_by := (line_speed / desired_speed - 1) * line_time
+	
 	if line_time + extend_by < params.MinLength {
 		extend_by = params.MinLength - line_time
 	}
