@@ -6,10 +6,10 @@ export DEBFULLNAME="Chetan Chauhan"
 
 export GOPATH=$(pwd)/packages
 
-
 GOBIN=go
+GOFLAGS="-ldflags -w"
 
 ${GOBIN} get github.com/pkg/errors
 
-${GOBIN} build -o subfixer -i *.go || exit
+${GOBIN} build ${GOFLAGS} -o subfixer -i *.go || exit
 
