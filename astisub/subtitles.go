@@ -116,6 +116,7 @@ type Item struct {
 	Region      *Region
 	StartAt     time.Duration
 	Style       *Style
+	Process  bool
 }
 
 // String implements the Stringer interface

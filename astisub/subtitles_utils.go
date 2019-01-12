@@ -8,6 +8,11 @@ import (
 	"../strip"
 )
 
+type RangeStruct struct {
+	Start_id	int
+	Stop_id		int
+}
+
 type CommandParams struct {
 	File			string
 	Speed			float64
@@ -18,6 +23,7 @@ type CommandParams struct {
 	ExpandCloserThan	float64
 	SplitLongerThan		float64
 	ShrinkLongerThan	float64
+	LimitTo			[]RangeStruct
 }
 
 func (i *Item) Add(d time.Duration) {

@@ -6,6 +6,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 )
 
@@ -55,7 +56,38 @@ func parseFlags() (astisub.CommandParams, error) {
 										DefaultShrinkLongerThan,
 										"Shrink a single line subtitle longer than n seconds")
 	
+	limitToPtr := flag.String(	"limit_to",
+								"",
+								"Limit to range or list of subtitle id's (1-2,4-10,14-16,18)")
+	
 	flag.Parse()
+	
+	limitTo := *limitToPtr
+	var limitRanges []astisub.RangeStruct
+	
+	if limitTo!="" {
+		limitArr := strings.Split(limitTo, ",")
+		for _, limitStr := range limitArr {
+			limitStr = strings.Trim(limitStr, " ")
+			limit := strings.Split(limitStr, "-")
+			
+			if len(limit)>0 {
+				if limitRanges==nil {
+					limitRanges = make([]astisub.RangeStruct,0)
+				}
+				if startId, _ := strconv.Atoi(limit[0]); startId>0 {
+					rangeStr := astisub.RangeStruct{startId, startId}
+					if len(limit)>1 {
+						if stopId, _ := strconv.Atoi(limit[1]); stopId>0 {
+							rangeStr.Stop_id = stopId
+						}
+					}
+					
+					limitRanges = append(limitRanges, rangeStr)
+				}
+			}
+		}
+	}
 	
 	res := astisub.CommandParams{	*filePtr,
 									*speedPtr,
@@ -65,7 +97,8 @@ func parseFlags() (astisub.CommandParams, error) {
 									*joinShorterThanPtr,
 									*expandCloserThanPtr,
 									*splitLongerThanPtr,
-									*shrinkLongerThanPtr,	}
+									*shrinkLongerThanPtr,
+									limitRanges,	}
 	var err error = nil
 	
 	if res.File=="" {
@@ -92,13 +125,29 @@ func main() {
 		}
 		
 		incBy := 1
+		if params.LimitTo==nil {
+			params.LimitTo=make([]astisub.RangeStruct, 0)
+			rangeStr := astisub.RangeStruct{0, len(s.Items)-1}
+		
+			params.LimitTo = append(params.LimitTo, rangeStr)
+		}
+		
+		for _, limitrec := range params.LimitTo {
+			for i:=limitrec.Start_id; i < len(s.Items) && i+1<=limitrec.Stop_id; i++ {
+				s.Items[i].Process = true
+			}
+		}
+		
+		
 		for i:=0; i < len(s.Items); i+= incBy {
-			for p:=0; p<3; p++ {
-				fmt.Printf("id #%d: Starting Pass %d..\n", i+1, p+1)
-				incBy = s.AdjustDuration(i, params)
-				if incBy <= 0 {
-					fmt.Printf("Skipping further passes as subtitles seems to have been deleted / split")
-					break
+			if s.Items[i].Process {
+				for p:=0; p<3; p++ {
+					fmt.Printf("id #%d: Starting Pass %d..\n", i+1, p+1)
+					incBy = s.AdjustDuration(i, params)
+					if incBy <= 0 {
+						fmt.Printf("Skipping further passes as subtitles seems to have been deleted / split")
+						break
+					}
 				}
 			}
 		}
