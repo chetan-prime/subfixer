@@ -9,8 +9,8 @@ import (
 )
 
 type RangeStruct struct {
-	Start_id	int
-	Stop_id		int
+	Start	string
+	Stop	string
 }
 
 type CommandParams struct {
@@ -26,12 +26,25 @@ type CommandParams struct {
 	LimitTo			[]RangeStruct
 }
 
+func ParseDuration(i string, separator string, length int) (time.Duration, error) {
+	return parseDuration(i, separator, length)
+}
+
 func (i *Item) Add(d time.Duration) {
 	i.EndAt += d
 	i.StartAt += d
 	if i.StartAt <= 0 {
 		i.StartAt = time.Duration(0)
 	}
+}
+
+func (i *Item) Within(d time.Duration) bool {
+	if i.StartAt<=d &&
+	   i.EndAt>= d {
+		return true
+	}
+	
+	return false
 }
 
 func (item *Item) GetRuneCount() int {

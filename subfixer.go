@@ -8,6 +8,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 )
 
 const (
@@ -75,11 +76,11 @@ func parseFlags() (astisub.CommandParams, error) {
 				if limitRanges==nil {
 					limitRanges = make([]astisub.RangeStruct,0)
 				}
-				if startId, _ := strconv.Atoi(limit[0]); startId>0 {
-					rangeStr := astisub.RangeStruct{startId, startId}
+				if start := limit[0]; start!="" {
+					rangeStr := astisub.RangeStruct{start, start}
 					if len(limit)>1 {
-						if stopId, _ := strconv.Atoi(limit[1]); stopId>0 {
-							rangeStr.Stop_id = stopId
+						if stop := limit[1]; stop!="" {
+							rangeStr.Stop = stop
 						}
 					}
 					
@@ -127,14 +128,44 @@ func main() {
 		incBy := 1
 		if params.LimitTo==nil {
 			params.LimitTo=make([]astisub.RangeStruct, 0)
-			rangeStr := astisub.RangeStruct{0, len(s.Items)-1}
+			rangeStr := astisub.RangeStruct{"0", strconv.FormatInt(int64(len(s.Items)-1),10)}
 		
 			params.LimitTo = append(params.LimitTo, rangeStr)
 		}
 		
 		for _, limitrec := range params.LimitTo {
-			for i:=limitrec.Start_id; i < len(s.Items) && i+1<=limitrec.Stop_id; i++ {
-				s.Items[i].Process = true
+			if strings.Index(limitrec.Start, ":")>-1 ||
+			   strings.Index(limitrec.Start, ".")>-1 {
+				start := time.Duration(0)
+				stop := time.Duration(0)
+				
+				if strings.Index(limitrec.Start, ":")>-1 {
+					start, _ = astisub.ParseDuration(limitrec.Start, ".", 3)
+					stop, _  = astisub.ParseDuration(limitrec.Stop, ".", 3)
+				} else {
+					startf,_ := strconv.ParseFloat(limitrec.Start, 64)
+					stopf,_ := strconv.ParseFloat(limitrec.Stop, 64)
+					
+					start = time.Duration( startf * float64( time.Second ) )
+					stop  = time.Duration( stopf  * float64( time.Second ) )
+				}
+				
+				for i:=0; i < len(s.Items); i++ {
+					if (	s.Items[i].StartAt>=start &&
+							s.Items[i].EndAt<=stop ) ||
+					   (	s.Items[i].StartAt<=stop &&
+							s.Items[i].EndAt>=start ) {
+						s.Items[i].Process = true
+						fmt.Printf("Marking subtitle id #%d for processing\n", i+1)
+					}
+				}
+			} else {
+				start, _ := strconv.Atoi(limitrec.Start)
+				stop, _  := strconv.Atoi(limitrec.Stop)
+				for i:=start; i < len(s.Items) && i+1<=stop; i++ {
+					s.Items[i].Process = true
+					fmt.Printf("Marking subtitle id #%d for processing\n", i+1)
+				}
 			}
 		}
 		
