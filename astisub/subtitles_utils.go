@@ -15,6 +15,7 @@ type RangeStruct struct {
 
 type CommandParams struct {
 	File			string
+	Mode			string
 	Speed			float64
 	SpeedEpsilon	float64
 	MinLength		float64
@@ -24,6 +25,35 @@ type CommandParams struct {
 	SplitLongerThan		float64
 	ShrinkLongerThan	float64
 	LimitTo			[]RangeStruct
+	MaxLines		int
+	CharsPerLine	int
+	ReadingSpeed	float64
+	LineBalance		float64
+	PreferCompact	bool
+	SpacesAsChars	bool
+	NewlinesAsChars	bool
+	ForbiddenChars	string
+}
+
+func AddStringIfNotInArray(arr []string, str string) []string {
+	exists := false
+	
+	if arr == nil {
+		arr = make([]string, 0)
+	}
+	
+	for _, elem := range arr {
+		if elem == str {
+			exists = true
+			break
+		}
+	}
+	
+	if !exists {
+		arr = append(arr, str)
+	}
+	
+	return arr
 }
 
 func ParseDuration(i string, separator string, length int) (time.Duration, error) {
@@ -52,12 +82,12 @@ func (item *Item) GetRuneCount() int {
 	return len(runeArr)
 }
 
-func (item *Item) GetSpeed() float64 {
+func (item *Item) GetSpeed(id int) float64 {
 	length := item.GetLength()
 	line_speed := float64(item.GetRuneCount()) / length
 	text := strip.StripTags(item.String())
 	
-	fmt.Printf("Read string --> '%s'/length=%g/line_speed=%g\n", text, length, line_speed)
+	fmt.Printf("#%d/Read --> '%s'/length=%g/line_speed=%g\n", id, text, length, line_speed)
 	return line_speed
 }
 
@@ -65,8 +95,8 @@ func (item *Item) GetLength() float64 {
 	return float64(item.EndAt - item.StartAt) / float64(time.Second)
 }
 
-func (item *Item) GetExtendBy(params CommandParams) float64 {
-	line_speed := item.GetSpeed()
+func (item *Item) GetExtendBy(id int, params CommandParams) float64 {
+	line_speed := item.GetSpeed(id)
 	line_time := item.GetLength()
 	
 	desired_speed := params.Speed - (params.Speed * params.SpeedEpsilon / 100.0)
@@ -101,7 +131,7 @@ func (s *Subtitles) AdjustStart(i int, params CommandParams, reduce bool) (float
 	}
 	
 	adjusted_by := 0.0
-	extend_by := item.GetExtendBy(params)
+	extend_by := item.GetExtendBy(i+1, params)
 	
 	if extend_by > 0 && last_stop < item.StartAt {
 		last_diff := float64(item.StartAt - last_stop) / float64(time.Second)
@@ -152,7 +182,7 @@ func (s *Subtitles) AdjustEnd(i int, params CommandParams, reduce bool) (float64
 	}
 	
 	adjusted_by := 0.0
-	extend_by := item.GetExtendBy(params)
+	extend_by := item.GetExtendBy(i+1, params)
 	
 	if !reduce && extend_by > 0 && next_start > item.EndAt {
 		next_diff := float64(next_start - item.EndAt) / float64(time.Second)
@@ -188,7 +218,7 @@ func (s *Subtitles) AdjustEnd(i int, params CommandParams, reduce bool) (float64
 
 func (s *Subtitles) AdjustDuration(i int, params CommandParams) int {
 	var item *Item = s.Items[i]
-	line_speed := item.GetSpeed()
+	line_speed := item.GetSpeed(i+1)
 	line_time := item.GetLength()
 	
 	incBy := 1
@@ -274,7 +304,7 @@ func (s *Subtitles) AdjustDuration(i int, params CommandParams) int {
 					i+1,
 					params.SplitLongerThan )
 		
-		line_speed = item.GetSpeed()
+		line_speed = item.GetSpeed(i+1)
 		line_time = item.GetLength()
 	}
 	
@@ -315,7 +345,7 @@ func (s *Subtitles) AdjustDuration(i int, params CommandParams) int {
 	if (	line_speed > params.Speed ||
 			line_time < min_length ) &&
 	   item.GetLength() < params.ShrinkLongerThan {
-		extend_by := item.GetExtendBy(params)
+		extend_by := item.GetExtendBy(i+1, params)
 		adjusted_by := 0.0
 		
 		if extend_by>0 &&
@@ -360,5 +390,76 @@ func (s *Subtitles) AdjustDuration(i int, params CommandParams) int {
 	
 	return incBy
 }
+
+func (s *Subtitles) PerfectionCheck(i int, params CommandParams) []string {
+	var item *Item = s.Items[i]
+	
+	perrs := make([]string, 0)
+	
+	if params.MaxLines>0 && len(item.Lines)>params.MaxLines {
+		perrs = AddStringIfNotInArray(perrs, "Too Many lines")
+	}
+	
+	maxLen := 0
+	minLen := -1
+	plainChars := 0
+	
+	for i:=0; i<len(item.Lines); i++ {
+		plain := strip.StripTags(item.Lines[i].String())
+		plain = strings.Trim(plain, " ")
+		
+		if !params.SpacesAsChars {
+			plain = strings.Replace(plain, " ", "", -1)
+		}
+
+		if !params.NewlinesAsChars {
+			plain += "\n"
+		}
+
+		plainRune := []rune(plain)
+		
+		if len(params.ForbiddenChars)>0 &&
+		   len(plainRune) > 0 &&
+		   strings.IndexRune(params.ForbiddenChars, plainRune[0]) > -1 {
+			err := fmt.Sprintf("No Subtitle line should start with this character - '%s'", plain[0])
+			perrs = AddStringIfNotInArray(perrs, err);
+		}
+		
+		if len(plainRune) > maxLen {
+			maxLen = len(plainRune)
+		}
+		if (minLen<0 || len(plainRune) < minLen) {
+			minLen = len(plainRune)
+		}
+
+		plainChars += len(plainRune)
+		if params.CharsPerLine>0 &&
+		   len(plainRune) > params.CharsPerLine {
+			perrs = AddStringIfNotInArray(perrs, "Too many characters");
+		}
+	}
+
+	if params.ReadingSpeed > 0 &&
+	   item.GetSpeed(i+1) > params.ReadingSpeed {
+		perrs = AddStringIfNotInArray(perrs, "Reading speed is too high");
+	}
+	
+	if params.LineBalance > 0 &&
+	   len(item.Lines)>1 &&
+	   ( float64(minLen) / float64(maxLen) ) *
+	   100.0 < params.LineBalance {
+		perrs = AddStringIfNotInArray(perrs, "Lines are not in balance");
+	}
+	if params.PreferCompact &&
+	   params.CharsPerLine > 0 &&
+	   len(item.Lines) > 1 &&
+	   plainChars < params.CharsPerLine {
+		perrs = AddStringIfNotInArray(perrs, "Multiple lines unnecessarily used");
+	}
+	
+	return perrs
+}
+
+
 
 
