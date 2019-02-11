@@ -5,7 +5,7 @@
 package main
 
 import (
-	"./astisub"
+	"astisub"
 	"errors"
 	"flag"
 	"fmt"

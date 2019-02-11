@@ -9,7 +9,7 @@ import (
 	"math"
 	"strings"
 	"time"
-	"../strip"
+	"strip"
 )
 
 // This file contains changes made for subfixer
