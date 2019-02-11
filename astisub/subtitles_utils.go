@@ -9,7 +9,7 @@ import (
 	"math"
 	"strings"
 	"time"
-	"strip"
+	"github.com/chetan-prime/subfixer/strip"
 )
 
 // This file contains changes made for subfixer

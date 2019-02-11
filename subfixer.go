@@ -5,7 +5,7 @@
 package main
 
 import (
-	"astisub"
+	"github.com/chetan-prime/subfixer/astisub"
 	"errors"
 	"flag"
 	"fmt"
