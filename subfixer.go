@@ -2,7 +2,7 @@
 // Use of this source code is governed by an AGPL
 // license that can be found in the LICENSE.md file.
 
-package main
+package subfixer
 
 import (
 	"github.com/chetan-prime/subfixer/astisub"
