@@ -1,7 +1,17 @@
+
 # Subfixer
 
 Subfixer is a golang program with minimal dependencies for processing subtitles.
-It operates in two modes
+It accepts subtitles in ONLY Subrip / SRT format.
+
+It operates in two modes -
+
+ 1. **Normal Operation**
+In this mode , the program processes all subtitles, either within a range you specify or from start to end. Any subtitle found to not comply with the default or provided parameters is adjusted either in duration or split / joined depending on what is 
+At the end all changes are automatically saved back to disk on the same file as input.
+There is **NO BACKUP** so you should make sure to take a backup if you are unsure of the parameters or program operation.
+
+ 2. **Pefection Check**
 
 ## Build
 
@@ -66,7 +76,10 @@ Usage of ./subfixer:
     	Trim space to left & right of each subtitle (default 1)
 ```
 
+## Dependencies
+The program currently includes source for a modified version of [astisub](https://github.com/asticode/go-astisub) . I have removed code for other subtitle formats we don't use and added a new file `subtitles_utils.go` . This contains new helper functions used by subfixer to the existing library.
 
+Also included is strip.go from [html-strip-tags-go](https://github.com/grokify/html-strip-tags-go)
 
 ## Contributing
 Pull requests will be considered, time providing. For major changes, please open an issue first to discuss what you would like to change.
