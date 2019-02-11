@@ -2,7 +2,7 @@
 # Subfixer
 
 Subfixer is a golang program with minimal dependencies for processing subtitles.
-It accepts subtitles in ONLY Subrip / SRT format.
+It presently accepts subtitles in only Subrip / SRT format.
 
 It operates in two modes -
 
@@ -12,6 +12,13 @@ At the end all changes are automatically saved back to disk on the same file as 
 There is **NO BACKUP** so you should make sure to take a backup if you are unsure of the parameters or program operation.
 
  2. **Pefection Check**
+In this mode , the program processes all subtitles, either within a range you specify or from start to end. Each perfection check is performed on each subtitle based on the parameters you supply via command line or the defaults for the same.
+This can be used in a script also as below -
+
+```bash
+./subfixer -file /path/to/file.srt -mode perfection || echo Failed
+```
+The exit code is 0 in case of no errors. Also the program will say `Perfection check passed succesfully`
 
 ## Build
 
