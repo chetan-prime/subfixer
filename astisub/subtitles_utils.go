@@ -1,3 +1,7 @@
+// Copyright 2019 Michele Gianella & Chetan Chauhan.
+// Use of this source code is governed by an AGPL
+// license that can be found in the LICENSE.md file.
+
 package astisub
 
 import (
@@ -8,11 +12,15 @@ import (
 	"../strip"
 )
 
+// This file contains changes made for subfixer
+
+// RangeStruct is used for specifying the Range of subtitles to process
 type RangeStruct struct {
 	Start	string
 	Stop	string
 }
 
+// CommandParams contains parameters for normal operation & Perfection check
 type CommandParams struct {
 	File			string
 	Mode			string
@@ -35,6 +43,9 @@ type CommandParams struct {
 	ForbiddenChars	string
 }
 
+// AddStringIfNotInArray is a helper function
+// to add a string only if it doesn't already exist.
+// It is case-sensitive
 func AddStringIfNotInArray(arr []string, str string) []string {
 	exists := false
 	
@@ -56,10 +67,13 @@ func AddStringIfNotInArray(arr []string, str string) []string {
 	return arr
 }
 
+// ParseDuration is the public function for internal parseDuration
 func ParseDuration(i string, separator string, length int) (time.Duration, error) {
 	return parseDuration(i, separator, length)
 }
 
+// Add function uses arithmetic to add the Duration d
+// to BOTH start & end times for an Item
 func (i *Item) Add(d time.Duration) {
 	i.EndAt += d
 	i.StartAt += d
@@ -68,6 +82,8 @@ func (i *Item) Add(d time.Duration) {
 	}
 }
 
+// Within checks if the Duration d is between the current items
+// start & end times
 func (i *Item) Within(d time.Duration) bool {
 	if i.StartAt<=d &&
 	   i.EndAt>= d {
@@ -77,11 +93,15 @@ func (i *Item) Within(d time.Duration) bool {
 	return false
 }
 
+// GetRuneCount processes the current item as an utf8 string
+// and returns the length in on-screen utf8 characters
 func (item *Item) GetRuneCount() int {
 	runeArr := []rune(strip.StripTags(item.String()))
 	return len(runeArr)
 }
 
+// GetSpeed returns the speed in characters / second of the current
+// subtitle. It bases this on utf8 length / duration
 func (item *Item) GetSpeed(id int) float64 {
 	length := item.GetLength()
 	line_speed := float64(item.GetRuneCount()) / length
@@ -91,10 +111,14 @@ func (item *Item) GetSpeed(id int) float64 {
 	return line_speed
 }
 
+// GetLength returns the duration(in seconds) of the current subtitle
 func (item *Item) GetLength() float64 {
 	return float64(item.EndAt - item.StartAt) / float64(time.Second)
 }
 
+// GetExtendBy returns the amount by which a subtitle can be extended.
+// This does not consider the direction of extension
+// or whether any subtitles exist to left or right of the current one
 func (item *Item) GetExtendBy(id int, params CommandParams) float64 {
 	line_speed := item.GetSpeed(id)
 	line_time := item.GetLength()
@@ -115,6 +139,12 @@ func (item *Item) GetExtendBy(id int, params CommandParams) float64 {
 	return extend_by
 }
 
+// AdjustStart changes the duration of the current subtitle
+// by shifting the start time to the right of present one
+// or to the left if the reduce flag is true.
+// It takes into account any existing subtitle to the left
+// of the current one, and extends only upto the end of the
+// subtitle to the left
 func (s *Subtitles) AdjustStart(i int, params CommandParams, reduce bool) (float64, float64) {
 	var item *Item = s.Items[i]
 	var last_item *Item = nil
@@ -166,6 +196,12 @@ func (s *Subtitles) AdjustStart(i int, params CommandParams, reduce bool) (float
 	return adjusted_by, line_time
 }
 
+// AdjustEnd changes the duration of the current subtitle
+// by shifting the end time to the right of present one
+// or to the left if the reduce flag is true.
+// It takes into account any existing subtitle to the right
+// of the current one, and extends only upto the start of the
+// subtitle to the right
 func (s *Subtitles) AdjustEnd(i int, params CommandParams, reduce bool) (float64, float64) {
 	var item *Item = s.Items[i]
 	var next_item *Item = nil
@@ -216,6 +252,14 @@ func (s *Subtitles) AdjustEnd(i int, params CommandParams, reduce bool) (float64
 	return adjusted_by, line_time
 }
 
+// AdjustDuration is exported as a function which can be
+// called by the main program. It processes each subtitle
+// within the Subtitles collection and depending on the
+// CommandParams it is called with performs :
+// 1. Trim spaces from start and end
+// 2. Join short two line subtitles
+// 3. Proportionally split a very long subtitle
+// 4. Expand or shrink duration of a subtitle to left or right
 func (s *Subtitles) AdjustDuration(i int, params CommandParams) int {
 	var item *Item = s.Items[i]
 	line_speed := item.GetSpeed(i+1)
@@ -391,6 +435,10 @@ func (s *Subtitles) AdjustDuration(i int, params CommandParams) int {
 	return incBy
 }
 
+// PerfectionCheck is exported as a function which can be
+// called by the main program. It processes each subtitle
+// within the Subtitles collection and performs "Perfection
+// check" based on CommandParams it is called with.
 func (s *Subtitles) PerfectionCheck(i int, params CommandParams) []string {
 	var item *Item = s.Items[i]
 	

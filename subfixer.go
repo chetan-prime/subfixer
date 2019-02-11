@@ -1,3 +1,7 @@
+// Copyright 2019 Michele Gianella & Chetan Chauhan.
+// Use of this source code is governed by an AGPL
+// license that can be found in the LICENSE.md file.
+
 package main
 
 import (
@@ -12,6 +16,7 @@ import (
 	"time"
 )
 
+// Below are the default constants for options
 const (
 	DefaultMode = "normal"
 	DefaultReadingSpeed = 21.0
@@ -31,6 +36,7 @@ const (
 	DefaultNewlinesAsChars = false
 )
 
+// parseFlags processes flags on command line, assigns to CommandParams structs & returns
 func parseFlags() (astisub.CommandParams, error) {
 	filePtr  := flag.String("file", "", "Subtitle Input File (Required)")
 	
@@ -161,6 +167,8 @@ func parseFlags() (astisub.CommandParams, error) {
 	return res, err
 }
 
+// NormalOperation runs normal operation (Read / Write).
+// This function is called based on the command line parameters used
 func NormalOperation(s *astisub.Subtitles, params astisub.CommandParams) int {
 	incBy := 1
 	
@@ -184,6 +192,8 @@ func NormalOperation(s *astisub.Subtitles, params astisub.CommandParams) int {
 	return 0
 }
 
+// Perform Perfection check(read only).
+// This function is called based on the command line parameters used
 func PerfectionOperation(s *astisub.Subtitles, params astisub.CommandParams) int {
 	error_code := 0
 	
@@ -228,6 +238,7 @@ func PerfectionOperation(s *astisub.Subtitles, params astisub.CommandParams) int
 	return error_code
 }
 
+// Main entry point for the program
 func main() {
 	params, err := parseFlags()
 	
