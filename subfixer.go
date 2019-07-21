@@ -5,7 +5,8 @@
 package subfixer
 
 import (
-	"github.com/chetan-prime/subfixer/astisub"
+	//"github.com/chetan-prime/subfixer/astisub"
+	"./astisub"
 	"errors"
 	"flag"
 	"fmt"

@@ -13,3 +13,5 @@ ${GOBIN} get github.com/pkg/errors
 
 ${GOBIN} build ${GOFLAGS} -o subfixer -i *.go || exit
 
+git commit -a
+

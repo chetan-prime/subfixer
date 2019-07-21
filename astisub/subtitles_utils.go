@@ -9,7 +9,8 @@ import (
 	"math"
 	"strings"
 	"time"
-	"github.com/chetan-prime/subfixer/strip"
+	//"github.com/chetan-prime/subfixer/strip"
+	"../strip"
 )
 
 // This file contains changes made for subfixer
@@ -95,16 +96,27 @@ func (i *Item) Within(d time.Duration) bool {
 
 // GetRuneCount processes the current item as an utf8 string
 // and returns the length in on-screen utf8 characters
-func (item *Item) GetRuneCount() int {
-	runeArr := []rune(strip.StripTags(item.String()))
-	return len(runeArr)
+func (item *Item) GetRuneCount(params CommandParams) int {
+	var s int = 0
+	
+	for i, l := range item.Lines {
+		runeArr := []rune( strip.StripTags(l.String()) )
+		s += len(runeArr)
+		
+		if i < len(item.Lines) - 1 &&
+		   params.NewlinesAsChars {
+			s += 1
+		}
+	}
+
+	return s
 }
 
 // GetSpeed returns the speed in characters / second of the current
 // subtitle. It bases this on utf8 length / duration
-func (item *Item) GetSpeed(id int) float64 {
+func (item *Item) GetSpeed(id int, params CommandParams) float64 {
 	length := item.GetLength()
-	line_speed := float64(item.GetRuneCount()) / length
+	line_speed := float64(item.GetRuneCount(params)) / length
 	text := strip.StripTags(item.String())
 	
 	fmt.Printf("#%d/Read --> '%s'/length=%g/line_speed=%g\n", id, text, length, line_speed)
@@ -120,7 +132,7 @@ func (item *Item) GetLength() float64 {
 // This does not consider the direction of extension
 // or whether any subtitles exist to left or right of the current one
 func (item *Item) GetExtendBy(id int, params CommandParams) float64 {
-	line_speed := item.GetSpeed(id)
+	line_speed := item.GetSpeed(id, params)
 	line_time := item.GetLength()
 	
 	desired_speed := params.Speed - (params.Speed * params.SpeedEpsilon / 100.0)
@@ -262,7 +274,7 @@ func (s *Subtitles) AdjustEnd(i int, params CommandParams, reduce bool) (float64
 // 4. Expand or shrink duration of a subtitle to left or right
 func (s *Subtitles) AdjustDuration(i int, params CommandParams) int {
 	var item *Item = s.Items[i]
-	line_speed := item.GetSpeed(i+1)
+	line_speed := item.GetSpeed(i+1, params)
 	line_time := item.GetLength()
 	
 	incBy := 1
@@ -304,7 +316,7 @@ func (s *Subtitles) AdjustDuration(i int, params CommandParams) int {
 		}
 	}
 	
-	if len(item.Lines)==2 && item.GetRuneCount()<params.JoinShorterThan {
+	if len(item.Lines)==2 && item.GetRuneCount(params)<params.JoinShorterThan {
 		// Join two line subtitle shorter than n characters
 		line := item.Lines[0]
 		line.Items = append(line.Items, item.Lines[1].Items...)
@@ -315,14 +327,14 @@ func (s *Subtitles) AdjustDuration(i int, params CommandParams) int {
 	}
 	
 	if len(item.Lines)==2 && item.GetLength()>params.SplitLongerThan {
-		c := float64(item.GetRuneCount())
+		c := float64(item.GetRuneCount(params))
 		l := item.GetLength()
 		
 		firstItem := *s.Items[i]
 		secondItem := *s.Items[i]
 		
 		firstItem.Lines = []Line{firstItem.Lines[0]}
-		firstLen  := l * float64( firstItem.GetRuneCount()) / c
+		firstLen  := l * float64( firstItem.GetRuneCount(params)) / c
 		
 		firstItem.EndAt = firstItem.StartAt +
 						  time.Duration( firstLen * float64(time.Second) )
@@ -348,7 +360,7 @@ func (s *Subtitles) AdjustDuration(i int, params CommandParams) int {
 					i+1,
 					params.SplitLongerThan )
 		
-		line_speed = item.GetSpeed(i+1)
+		line_speed = item.GetSpeed(i+1, params)
 		line_time = item.GetLength()
 	}
 	
@@ -488,7 +500,7 @@ func (s *Subtitles) PerfectionCheck(i int, params CommandParams) []string {
 	}
 
 	if params.ReadingSpeed > 0 &&
-	   item.GetSpeed(i+1) > params.ReadingSpeed {
+	   item.GetSpeed(i+1, params) > params.ReadingSpeed {
 		perrs = AddStringIfNotInArray(perrs, "Reading speed is too high");
 	}
 	
