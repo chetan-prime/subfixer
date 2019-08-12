@@ -157,7 +157,7 @@ func (item *Item) GetExtendBy(id int, params CommandParams) float64 {
 // It takes into account any existing subtitle to the left
 // of the current one, and extends only upto the end of the
 // subtitle to the left
-func (s *Subtitles) AdjustStart(i int, params CommandParams, reduce bool) (float64, float64) {
+func (s *Subtitles) AdjustStart(i int, params CommandParams, reduce_by float64) (float64, float64) {
 	var item *Item = s.Items[i]
 	var last_item *Item = nil
 	
@@ -190,8 +190,13 @@ func (s *Subtitles) AdjustStart(i int, params CommandParams, reduce bool) (float
 		fmt.Printf("id #%d: StartAt decreased by %gs/line_time=%g\n", i+1, last_diff, line_time)
 	}
 	
-	if reduce && extend_by < 0 && item.StartAt < item.EndAt {
+	if reduce_by>0 && extend_by < 0 && item.StartAt < item.EndAt {
 		last_diff := float64(item.EndAt - item.StartAt) / float64(time.Second)
+		
+		if math.Abs(extend_by) > reduce_by {
+			extend_by = -reduce_by
+		}
+		
 		if last_diff > math.Abs(extend_by) {
 			last_diff = math.Abs(extend_by)
 		}
@@ -412,7 +417,7 @@ func (s *Subtitles) AdjustDuration(i int, params CommandParams) int {
 		//fmt.Printf("#%d/line_speed=%g/reading_speed=%g/last_stop=%d/line_time=%g/extend_by=%g/next_start=%d\n", i+1, line_speed, reading_speed, last_stop, line_time, extend_by, next_start)
 		//fmt.Printf("#%d/item=%#v\n", i+1, s.Items[i])
 		if extend_by > 0 {
-			adjusted_by, line_time = s.AdjustStart(i, params, false)
+			adjusted_by, line_time = s.AdjustStart(i, params, 0.0)
 			extend_by -= adjusted_by
 		}
 		if extend_by > 0 {
@@ -424,7 +429,7 @@ func (s *Subtitles) AdjustDuration(i int, params CommandParams) int {
 		if extend_by > 0 {
 			if i+1 < len(s.Items) {
 				// Reduction algorithm will be minus figure
-				adjusted_by, line_time = s.AdjustStart(i+1, params, true)
+				adjusted_by, line_time = s.AdjustStart(i+1, params, extend_by)
 				
 				if adjusted_by < 0 {
 					adjusted_by, line_time = s.AdjustEnd(i, params, false)
@@ -437,7 +442,7 @@ func (s *Subtitles) AdjustDuration(i int, params CommandParams) int {
 				adjusted_by, line_time = s.AdjustEnd(i-1, params, true)
 				
 				if adjusted_by < 0 {
-					adjusted_by, line_time = s.AdjustStart(i, params, false)
+					adjusted_by, line_time = s.AdjustStart(i, params, 0.0)
 					extend_by -= adjusted_by
 				}
 			}
