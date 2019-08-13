@@ -219,7 +219,7 @@ func (s *Subtitles) AdjustStart(i int, params CommandParams, reduce_by float64) 
 // It takes into account any existing subtitle to the right
 // of the current one, and extends only upto the start of the
 // subtitle to the right
-func (s *Subtitles) AdjustEnd(i int, params CommandParams, reduce bool) (float64, float64) {
+func (s *Subtitles) AdjustEnd(i int, params CommandParams, reduce_by float64) (float64, float64) {
 	var item *Item = s.Items[i]
 	var next_item *Item = nil
 	
@@ -237,8 +237,9 @@ func (s *Subtitles) AdjustEnd(i int, params CommandParams, reduce bool) (float64
 	adjusted_by := 0.0
 	extend_by := item.GetExtendBy(i+1, params)
 	
-	if !reduce && extend_by > 0 && next_start > item.EndAt {
+	if reduce_by == 0 && extend_by > 0 && next_start > item.EndAt {
 		next_diff := float64(next_start - item.EndAt) / float64(time.Second)
+		
 		if next_diff > extend_by {
 			next_diff = extend_by
 		}
@@ -251,8 +252,13 @@ func (s *Subtitles) AdjustEnd(i int, params CommandParams, reduce bool) (float64
 		fmt.Printf("id #%d: EndAt increased by %gs/line_time=%g\n", i+1, next_diff, line_time)
 	}
 	
-	if reduce && extend_by < 0 && item.StartAt < item.EndAt {
+	if reduce_by > 0 && extend_by < 0 && item.StartAt < item.EndAt {
 		last_diff := float64(item.EndAt - item.StartAt) / float64(time.Second)
+		
+		if math.Abs(extend_by) > reduce_by {
+			extend_by = -reduce_by
+		}
+		
 		if last_diff > math.Abs(extend_by) {
 			last_diff = math.Abs(extend_by)
 		}
@@ -421,7 +427,7 @@ func (s *Subtitles) AdjustDuration(i int, params CommandParams) int {
 			extend_by -= adjusted_by
 		}
 		if extend_by > 0 {
-			adjusted_by, line_time = s.AdjustEnd(i, params, false)
+			adjusted_by, line_time = s.AdjustEnd(i, params, 0.0)
 			extend_by -= adjusted_by
 		}
 		
@@ -432,14 +438,14 @@ func (s *Subtitles) AdjustDuration(i int, params CommandParams) int {
 				adjusted_by, line_time = s.AdjustStart(i+1, params, extend_by)
 				
 				if adjusted_by < 0 {
-					adjusted_by, line_time = s.AdjustEnd(i, params, false)
+					adjusted_by, line_time = s.AdjustEnd(i, params, 0.0)
 					extend_by -= adjusted_by
 				}
 			}
 			
 			if extend_by > 0 && i > 0 {
 				// Reduction algorithm will be minus figure
-				adjusted_by, line_time = s.AdjustEnd(i-1, params, true)
+				adjusted_by, line_time = s.AdjustEnd(i-1, params, extend_by)
 				
 				if adjusted_by < 0 {
 					adjusted_by, line_time = s.AdjustStart(i, params, 0.0)
