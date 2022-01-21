@@ -458,6 +458,47 @@ func (s *Subtitles) AdjustDuration(i int, params CommandParams) int {
 	return incBy
 }
 
+// AdjustOverlap is exported as a function which can be
+// called by the main program. It processes each subtitle
+// within the Subtitles collection and depending on the
+// CommandParams it is called with performs :
+// 1. Expand or shrink duration of a subtitle to left or right
+
+func (s *Subtitles) AdjustOverlap(i int, params CommandParams) int {
+	var item *Item = s.Items[i]
+
+	if i+1 < len(s.Items) {
+		diff_time := float64(s.Items[i+1].StartAt - item.EndAt) / float64(time.Second)
+		
+		/*if diff_time > 0 &&
+		   diff_time < params.ExpandCloserThan {
+			expand_time := (s.Items[i+1].StartAt - item.EndAt) / 2
+		
+			if item.GetLength() + params.ExpandCloserThan / 2 < params.ShrinkLongerThan {
+				fmt.Printf("id #%d: EndAt expanded by %gs to near half point between %gs distant next subtitles\n",
+							i+1,
+							diff_time / 2,
+							diff_time)
+				item.EndAt += expand_time
+			}
+			if s.Items[i+1].GetLength() + params.ExpandCloserThan / 2 < params.ShrinkLongerThan {
+				fmt.Printf("id #%d: StartAt reduced by %gs to near half point between %gs previous subttle\n",
+							i+2,
+							diff_time / 2,
+							diff_time)
+				s.Items[i+1].StartAt -= expand_time
+			}
+		} else*/
+		if diff_time < 0 {
+			fmt.Printf("id #%d: diff_time=%g, < 0, adjusting EndAt\n", i+1, diff_time)
+			item.EndAt = s.Items[i+1].StartAt - time.Millisecond
+		}
+	}
+
+	return 0
+}
+
+
 // PerfectionCheck is exported as a function which can be
 // called by the main program. It processes each subtitle
 // within the Subtitles collection and performs "Perfection

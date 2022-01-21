@@ -11,6 +11,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
@@ -41,7 +42,7 @@ const (
 func parseFlags() (astisub.CommandParams, error) {
 	filePtr  := flag.String("file", "", "Subtitle Input File (Required)")
 	
-	modePtr  := flag.String("mode", DefaultMode, "Operation Mode (normal/perfection)")
+	modePtr  := flag.String("mode", DefaultMode, "Operation Mode (overlap/normal/perfection)")
 
 	speedPtr := flag.Float64(	"speed",
 								DefaultReadingSpeed,
@@ -163,6 +164,15 @@ func parseFlags() (astisub.CommandParams, error) {
 	
 	if res.File=="" {
 		err = errors.New("Input Subtitle file is required")
+		return res, err
+	}
+	
+	switch(res.Mode) {
+	case "overlap", "normal", "", "perfection":
+		// Do nothing, all is fine
+	default:
+		err = errors.New("Mode can be only one of: overlap, normal OR perfection")
+		return res, err
 	}
 	
 	return res, err
@@ -192,6 +202,21 @@ func NormalOperation(s *astisub.Subtitles, params astisub.CommandParams) int {
 	
 	return 0
 }
+
+// OverlapOperation runs normal operation (Read / Write).
+// This function is called based on the command line parameters used
+func OverlapOperation(s *astisub.Subtitles, params astisub.CommandParams) int {
+	for i:=0; i < len(s.Items); i+= 1 {
+		s.AdjustOverlap(i, params)
+	}
+	
+	fmt.Printf("Now saving changes to file %s: ", params.File)
+	s.Write(params.File)
+	fmt.Printf("[DONE]\n")
+	
+	return 0
+}
+
 
 // Perform Perfection check(read only).
 // This function is called based on the command line parameters used
@@ -248,71 +273,93 @@ func main() {
 			os.Stderr.WriteString(fmt.Sprintf("Error: %s", err))
 			return
 		}
-		// Open
-		s, err := astisub.OpenFile( params.File )
+		files := []string{}
+		files, err = filepath.Glob(params.File)
 		
-		if err!=nil {
-			os.Stderr.WriteString(fmt.Sprintf("Error opening %s: %s\n", params.File, err))
+		if err != nil {
+			os.Stderr.WriteString(fmt.Sprintf("Error globbing list of files for '%s': %s\n", params.File, err))
+			os.Exit(1)
 			return
 		}
 		
-		if params.LimitTo==nil {
-			params.LimitTo=make([]astisub.RangeStruct, 0)
-			rangeStr := astisub.RangeStruct{"0", strconv.FormatInt(int64(len(s.Items)-1),10)}
-	
-			params.LimitTo = append(params.LimitTo, rangeStr)
-		}
-	
-		for _, limitrec := range params.LimitTo {
-			if strings.Index(limitrec.Start, ":")>-1 ||
-			   strings.Index(limitrec.Start, ".")>-1 {
-				start := time.Duration(0)
-				stop := time.Duration(0)
+		for _, fname := range files {
+			// Open
+			s, err := astisub.OpenFile(fname)
+			if err != nil {
+				os.Stderr.WriteString(fmt.Sprintf("Error opening file '%s': %s\n", fname, err))
+				os.Exit(1)
+				return
+			}
 			
-				if strings.Index(limitrec.Start, ":")>-1 {
-					start, _ = astisub.ParseDuration(limitrec.Start, ".", 3)
-					stop, _  = astisub.ParseDuration(limitrec.Stop, ".", 3)
-				} else {
-					startf,_ := strconv.ParseFloat(limitrec.Start, 64)
-					stopf,_ := strconv.ParseFloat(limitrec.Stop, 64)
-				
-					start = time.Duration( startf * float64( time.Second ) )
-					stop  = time.Duration( stopf  * float64( time.Second ) )
+			params.File = fname
+			
+	
+			if params.Mode != "overlap" {
+				if params.LimitTo==nil {
+					params.LimitTo=make([]astisub.RangeStruct, 0)
+					rangeStr := astisub.RangeStruct{"0", strconv.FormatInt(int64(len(s.Items)-1),10)}
+		
+					params.LimitTo = append(params.LimitTo, rangeStr)
 				}
-			
-				for i:=0; i < len(s.Items); i++ {
-					if (	s.Items[i].StartAt>=start &&
-							s.Items[i].EndAt<=stop ) ||
-					   (	s.Items[i].StartAt<=stop &&
-							s.Items[i].EndAt>=start ) {
-						s.Items[i].Process = true
-						fmt.Printf("Marking subtitle id #%d for processing\n", i+1)
+				
+				for _, limitrec := range params.LimitTo {
+					if strings.Index(limitrec.Start, ":")>-1 ||
+					   strings.Index(limitrec.Start, ".")>-1 {
+						start := time.Duration(0)
+						stop := time.Duration(0)
+					
+						if strings.Index(limitrec.Start, ":")>-1 {
+							start, _ = astisub.ParseDuration(limitrec.Start, ".", 3)
+							stop, _  = astisub.ParseDuration(limitrec.Stop, ".", 3)
+						} else {
+							startf,_ := strconv.ParseFloat(limitrec.Start, 64)
+							stopf,_ := strconv.ParseFloat(limitrec.Stop, 64)
+						
+							start = time.Duration( startf * float64( time.Second ) )
+							stop  = time.Duration( stopf  * float64( time.Second ) )
+						}
+					
+						for i:=0; i < len(s.Items); i++ {
+							if (	s.Items[i].StartAt>=start &&
+									s.Items[i].EndAt<=stop ) ||
+							   (	s.Items[i].StartAt<=stop &&
+									s.Items[i].EndAt>=start ) {
+								s.Items[i].Process = true
+								fmt.Printf("Marking subtitle id #%d for processing\n", i+1)
+							}
+						}
+					} else {
+						start, _ := strconv.Atoi(limitrec.Start)
+						if start < 1 {
+							start = 1
+						}
+						stop, _  := strconv.Atoi(limitrec.Stop)
+						for i:=start-1; i < len(s.Items) && i<=stop-1; i++ {
+							s.Items[i].Process = true
+							fmt.Printf("Marking subtitle id #%d for processing\n", i+1)
+						}
 					}
 				}
+			}
+			
+			error_code := 0
+			
+			if params.Mode=="perfection" {
+				fmt.Printf("Performing in Perfection mode on '%s'\n", fname)
+				error_code = PerfectionOperation(s, params)
+			} else 
+			if params.Mode=="overlap" {
+				fmt.Printf("Performing in Overlap only mode on '%s'\n", fname)
+				error_code = OverlapOperation(s, params)
 			} else {
-				start, _ := strconv.Atoi(limitrec.Start)
-				if start < 1 {
-					start = 1
-				}
-				stop, _  := strconv.Atoi(limitrec.Stop)
-				for i:=start-1; i < len(s.Items) && i<=stop-1; i++ {
-					s.Items[i].Process = true
-					fmt.Printf("Marking subtitle id #%d for processing\n", i+1)
-				}
+				fmt.Printf("Performing in Normal mode on '%s'\n", fname)
+				error_code = NormalOperation(s, params)
+			}
+			
+			if error_code != 0 {
+				os.Exit(error_code)
 			}
 		}
-		
-		error_code := 0
-		
-		if params.Mode=="perfection" {
-			fmt.Printf("Performing in Perfection mode\n")
-			error_code = PerfectionOperation(s, params)
-		} else {
-			fmt.Printf("Performing in Normal mode\n")
-			error_code = NormalOperation(s, params)
-		}
-		
-		os.Exit(error_code)
 	} else {
 		avail := fmt.Sprintf("%s: Available parameters are below", os.Args[0])
 		avail += "\n" + strings.Repeat("-", len(avail)) + "\n"
