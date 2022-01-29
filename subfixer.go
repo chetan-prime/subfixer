@@ -196,6 +196,17 @@ func NormalOperation(s *astisub.Subtitles, params astisub.CommandParams) int {
 		}
 	}
 	
+	fmt.Printf(
+		"NormalOperation/Post-processing check for subtitles which are still unfit!\n",
+	)
+	
+	// Now check for still unfit subtitles
+	for i:=0; i < len(s.Items); i+= 1 {
+		if s.Items[i].Process {
+			s.ShiftUnfit(i, params)
+		}
+	}
+	
 	fmt.Printf("Now saving changes to file %s: ", params.File)
 	s.Write(params.File)
 	fmt.Printf("[DONE]\n")

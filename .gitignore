@@ -1,0 +1,6 @@
+*.srt
+*.tar.gz
+*.bak
+packages/
+subfixer
+*.zip

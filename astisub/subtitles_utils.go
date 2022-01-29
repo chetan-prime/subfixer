@@ -13,6 +13,11 @@ import (
 	"../strip"
 )
 
+
+const (
+	SUB_LEVELS = 3
+)
+
 // This file contains changes made for subfixer
 
 // RangeStruct is used for specifying the Range of subtitles to process
@@ -456,6 +461,325 @@ func (s *Subtitles) AdjustDuration(i int, params CommandParams) int {
 	}
 	
 	return incBy
+}
+
+func (s *Subtitles) ShiftUnfit(i int, params CommandParams) {
+	var item *Item = s.Items[i]
+	
+	line_speed := item.GetSpeed(i+1, params)
+	line_time := item.GetLength()
+	
+	min_length := ( ( 100.0 +
+	                  params.SpeedEpsilon ) /
+	                100.0) *
+	              params.MinLength
+	
+	if line_speed > params.Speed ||
+	   line_time < min_length {
+		// Subtitle is still unfit
+		
+		target_length := math.Ceil(
+				float64(item.GetRuneCount(params)) /
+				float64(params.Speed) *
+			1000 ) /
+		1000
+		
+		final_space_required := target_length - line_time
+		space_required := final_space_required
+		
+		//space_shifted := make([]float64, SUB_LEVELS)
+		
+		fmt.Printf(
+			"ShiftUnfit/#%d/line_speed=%g/params.Speed=%g/line_time=%g/min_length=%g/target_length=%g/space_required=%g/Found subtitle which is still unfit!\n",
+			i,
+			line_speed,
+			params.Speed,
+			line_time,
+			min_length,
+			target_length,
+			space_required,
+		)
+		
+		for inc := -1;
+			inc < 2 && space_required > 0;
+			inc += 2 {
+			for pass:=0; pass<3; pass++ {
+				/*fmt.Printf(
+					"ShiftUnfit/#%d/pass=%d/line_speed=%g/line_time=%g/target_length=%g/space_required=%g/Subtitle is still unfit!\n",
+					i,
+					pass,
+					line_speed,
+					line_time,
+					target_length,
+					space_required,
+				)*/
+			
+				// Look behind
+				//space_available := space_required
+		
+				target := i + (inc * SUB_LEVELS)
+				for j := i + inc;
+					j >=0 && j < len(s.Items) && j != target;
+					j += inc {
+					currItem := s.Items[j]
+					
+					move_left := true
+					move_right := false
+					
+					if j > i {
+						move_left = false
+						move_right = true
+					}
+					
+					var gap_left time.Duration = 0
+					var gap_right time.Duration = 0
+					var lastItem *Item
+					var lastIdx int = -1
+					var nextIdx int = -1
+					var nextItem *Item
+					
+					if j - 1 < 0 {
+						lastItem = &Item{
+							StartAt: 0,
+							EndAt: 0,
+						}
+					} else
+					if j - 1 >= 0 {
+						lastIdx = j-1
+						lastItem = s.Items[lastIdx]
+					}
+					
+					if j + 1 >= len(s.Items) {
+						nextItem = &Item{
+							StartAt: currItem.EndAt + (2 * time.Second),
+							EndAt: currItem.EndAt + (SUB_LEVELS * time.Second),
+						}
+					} else {
+						nextIdx = j+1
+						nextItem = s.Items[nextIdx]
+					}
+					
+					gap_left = currItem.StartAt - lastItem.EndAt
+					gap_right = nextItem.StartAt - currItem.EndAt// - time.Millisecond
+					
+					gap_length_left := float64(gap_left) / float64(time.Second)
+					gap_length_right := float64(gap_right) / float64(time.Second)
+					
+					if gap_length_left > space_required {
+						gap_length_left = space_required
+					}
+					
+					if move_left &&
+					   gap_length_left > 0 &&
+					   space_required > 0 {
+						shiftBy := time.Duration(gap_length_left * float64(time.Second))
+						//resizeBy := currItem.StartAt - lastItem.EndAt - shiftBy
+						
+						//if lastIdx > -1 &&
+						//	resizeBy > 0 {
+						//	s.Items[lastIdx].EndAt -= resizeBy
+						//}
+						
+						s.Items[j].StartAt -= shiftBy
+						s.Items[j].EndAt -= shiftBy
+						
+						fmt.Printf(
+							"ShiftUnfit/#%d/pass=%d/j=%d/inc=%d/gap_length_left=%g/shiftBy=%d/Shifting subtitle left by %gs\n",
+							i,
+							pass,
+							j,
+							inc,
+							gap_length_left,
+							shiftBy,
+							gap_length_left,
+						)
+						
+						if j == i + inc {
+							space_required -= gap_length_left
+						}
+					}
+					
+					if gap_length_right > space_required {
+						gap_length_right = space_required
+					}
+					
+					if move_right &&
+					   gap_length_right > 0 &&
+					   space_required > 0 {
+						shiftBy := time.Duration(gap_length_right * float64(time.Second))
+						
+						s.Items[j].StartAt += shiftBy
+						s.Items[j].EndAt += shiftBy
+						
+						fmt.Printf(
+							"ShiftUnfit/#%d/pass=%d/j=%d/inc=%d/gap_length_right=%g/shiftBy=%d/Shifting subtitle right by %gs\n",
+							i,
+							pass,
+							j,
+							inc,
+							gap_length_right,
+							shiftBy,
+							gap_length_right,
+						)
+					
+						if j == i + inc {
+							space_required -= gap_length_right
+						}
+					}
+						
+					fmt.Printf(
+						"ShiftUnfit/#%d/pass=%d/j=%d/inc=%d/gap_length_left=%g/gap_length_right=%g/space_required=%g\n",
+						i,
+						pass,
+						j,
+						inc,
+						gap_length_left,
+						gap_length_right,
+						space_required,
+					)
+					
+					if space_required <=0 {
+						break
+					}
+					
+					current_length := currItem.GetLength()
+					minimum_length := math.Ceil(
+							float64(item.GetRuneCount(params)) /
+							float64(params.Speed) *
+						100.0 ) /
+					100.0
+					extra_length := current_length - minimum_length
+					if extra_length <= 0 {
+						continue
+					}
+					
+					if extra_length >= space_required {
+						extra_length = space_required
+					}
+					
+					if move_left &&
+					   space_required > 0 {
+						resizeBy := time.Duration(extra_length * float64(time.Second))
+						s.Items[j].EndAt -= resizeBy
+						
+						if j == i + inc {
+							space_required -= extra_length
+						}
+					}
+					if move_right &&
+					   space_required > 0 {
+						resizeBy := time.Duration(extra_length * float64(time.Second))
+						s.Items[j].StartAt += resizeBy
+						
+						if j == i + inc {
+							space_required -= extra_length
+						}
+					}
+					
+					
+					fmt.Printf(
+						"ShiftUnfit/#%d/pass=%d/j=%d/extra_length=%g/space_required=%g\n",
+						i,
+						pass,
+						j,
+						extra_length,
+						space_required,
+					)
+				}
+			}
+		}
+			
+		//fmt.Printf(
+		//	"ShiftUnfit/#%d/final_space_required=%gs\n",
+		//	i,
+		//	final_space_required,
+		//)
+					
+		if final_space_required > 0 {
+			var lastItem *Item
+			if i - 1 < 0 {
+				lastItem = &Item{
+					StartAt: 0,
+					EndAt: 0,
+				}
+			} else {
+				lastItem = s.Items[i - 1]
+			}
+			
+			gap_length_left := float64(item.StartAt - lastItem.EndAt) / float64(time.Second)
+			fmt.Printf(
+				"ShiftUnfit/#%d/final_space_required=%gs/lastItem.StartAt=%d/lastItem.EndAt=%d/item.StartAt=%d/item.EndAt=%d/gap_length_left=%g\n",
+				i,
+				final_space_required,
+				lastItem.StartAt,
+				lastItem.EndAt,
+				item.StartAt,
+				item.EndAt,
+				gap_length_left,
+			)
+			
+			if gap_length_left > 0 {
+				if gap_length_left > final_space_required {
+					gap_length_left = final_space_required
+				}
+				
+				resizeBy := time.Duration(gap_length_left * float64(time.Second))
+				s.Items[i].StartAt -= resizeBy
+				final_space_required -= gap_length_left
+				
+				fmt.Printf(
+					"ShiftUnfit/#%d/gap_length_left=%g/resizeBy=%d/final_space_required=%g\n",
+					i,
+					gap_length_left,
+					resizeBy,
+					final_space_required,
+				)
+			}
+		}
+		
+		if final_space_required > 0 {
+			var nextItem *Item
+			if i + 1 >= len(s.Items) {
+				nextItem = &Item{
+					StartAt: item.EndAt + (2 * time.Second),
+					EndAt: item.EndAt + (3 * time.Second),
+				}
+			} else {
+				nextItem = s.Items[i+1]
+			}
+			
+			gap_length_right := float64(nextItem.StartAt - item.EndAt) / float64(time.Second)
+			
+			fmt.Printf(
+				"ShiftUnfit/#%d/final_space_required=%gs/item.StartAt=%d/item.EndAt=%d/nextItem.StartAt=%d/nextItem.EndAt=%d/gap_length_right=%g\n",
+				i,
+				final_space_required,
+				item.StartAt,
+				item.EndAt,
+				nextItem.StartAt,
+				nextItem.EndAt,
+				gap_length_right,
+			)
+			
+			if gap_length_right > 0 {
+				if gap_length_right > final_space_required {
+					gap_length_right = final_space_required
+				}
+				
+				resizeBy := time.Duration(gap_length_right * float64(time.Second))
+				s.Items[i].EndAt += resizeBy
+				final_space_required -= gap_length_right
+				
+				fmt.Printf(
+					"ShiftUnfit/#%d/gap_length_right=%g/resizeBy=%d/final_space_required=%g\n",
+					i,
+					gap_length_right,
+					resizeBy,
+					final_space_required,
+				)
+			}
+		}
+	}
 }
 
 // AdjustOverlap is exported as a function which can be
