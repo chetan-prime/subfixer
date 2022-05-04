@@ -503,188 +503,209 @@ func (s *Subtitles) ShiftUnfit(i int, params CommandParams) {
 		for inc := -1;
 			inc < 2 && space_required > 0;
 			inc += 2 {
-			for pass:=0; pass<3; pass++ {
-				/*fmt.Printf(
-					"ShiftUnfit/#%d/pass=%d/line_speed=%g/line_time=%g/target_length=%g/space_required=%g/Subtitle is still unfit!\n",
-					i,
-					pass,
-					line_speed,
-					line_time,
-					target_length,
-					space_required,
-				)*/
 			
-				// Look behind
-				//space_available := space_required
-		
-				target := i + (inc * SUB_LEVELS)
-				for j := i + inc;
-					j >=0 && j < len(s.Items) && j != target;
-					j += inc {
-					currItem := s.Items[j]
-					
-					move_left := true
-					move_right := false
-					
-					if j > i {
-						move_left = false
-						move_right = true
-					}
-					
-					var gap_left time.Duration = 0
-					var gap_right time.Duration = 0
-					var lastItem *Item
-					var lastIdx int = -1
-					var nextIdx int = -1
-					var nextItem *Item
-					
-					if j - 1 < 0 {
-						lastItem = &Item{
-							StartAt: 0,
-							EndAt: 0,
+			target := i + (inc * SUB_LEVELS)
+			
+			move_left := true
+			move_right := false
+			
+			if inc > 0 {
+				move_left = false
+				move_right = true
+			}
+			
+			for masterpass:=0; masterpass<3; masterpass++ {
+				for pass:=0; pass<3; pass++ {
+					for j := i + inc;
+						j >=0 && j < len(s.Items) && j != target;
+						j += inc {
+						currItem := s.Items[j]
+						
+						var gap_left time.Duration = 0
+						var gap_right time.Duration = 0
+						var lastItem *Item
+						var lastIdx int = -1
+						var nextIdx int = -1
+						var nextItem *Item
+						
+						if j - 1 < 0 {
+							lastItem = &Item{
+								StartAt: 0,
+								EndAt: 0,
+							}
+						} else
+						if j - 1 >= 0 {
+							lastIdx = j-1
+							lastItem = s.Items[lastIdx]
 						}
-					} else
-					if j - 1 >= 0 {
-						lastIdx = j-1
-						lastItem = s.Items[lastIdx]
-					}
-					
-					if j + 1 >= len(s.Items) {
-						nextItem = &Item{
-							StartAt: currItem.EndAt + (2 * time.Second),
-							EndAt: currItem.EndAt + (SUB_LEVELS * time.Second),
+						
+						if j + 1 >= len(s.Items) {
+							nextItem = &Item{
+								StartAt: currItem.EndAt + (2 * time.Second),
+								EndAt: currItem.EndAt + (SUB_LEVELS * time.Second),
+							}
+						} else {
+							nextIdx = j+1
+							nextItem = s.Items[nextIdx]
 						}
-					} else {
-						nextIdx = j+1
-						nextItem = s.Items[nextIdx]
-					}
-					
-					gap_left = currItem.StartAt - lastItem.EndAt
-					gap_right = nextItem.StartAt - currItem.EndAt// - time.Millisecond
-					
-					gap_length_left := float64(gap_left) / float64(time.Second)
-					gap_length_right := float64(gap_right) / float64(time.Second)
-					
-					if gap_length_left > space_required {
-						gap_length_left = space_required
-					}
-					
-					if move_left &&
-					   gap_length_left > 0 &&
-					   space_required > 0 {
-						shiftBy := time.Duration(gap_length_left * float64(time.Second))
-						//resizeBy := currItem.StartAt - lastItem.EndAt - shiftBy
 						
-						//if lastIdx > -1 &&
-						//	resizeBy > 0 {
-						//	s.Items[lastIdx].EndAt -= resizeBy
-						//}
+						gap_left = currItem.StartAt - lastItem.EndAt
+						gap_right = nextItem.StartAt - currItem.EndAt// - time.Millisecond
 						
-						s.Items[j].StartAt -= shiftBy
-						s.Items[j].EndAt -= shiftBy
+						gap_length_left := float64(gap_left) / float64(time.Second)
+						gap_length_right := float64(gap_right) / float64(time.Second)
 						
+						if gap_length_left > space_required {
+							gap_length_left = space_required
+						}
+						
+						if move_left &&
+						   gap_length_left > 0 &&
+						   space_required > 0 {
+							shiftBy := time.Duration(gap_length_left * float64(time.Second))
+							//resizeBy := currItem.StartAt - lastItem.EndAt - shiftBy
+							
+							//if lastIdx > -1 &&
+							//	resizeBy > 0 {
+							//	s.Items[lastIdx].EndAt -= resizeBy
+							//}
+							
+							s.Items[j].StartAt -= shiftBy
+							s.Items[j].EndAt -= shiftBy
+							
+							fmt.Printf(
+								"ShiftUnfit/#%d/pass=%d/j=%d/inc=%d/gap_length_left=%g/shiftBy=%d/Shifting subtitle left by %gs\n",
+								i,
+								pass,
+								j,
+								inc,
+								gap_length_left,
+								shiftBy,
+								gap_length_left,
+							)
+							
+							if j == i + inc {
+								space_required -= gap_length_left
+							}
+						}
+						
+						if gap_length_right > space_required {
+							gap_length_right = space_required
+						}
+						
+						if move_right &&
+						   gap_length_right > 0 &&
+						   space_required > 0 {
+							shiftBy := time.Duration(gap_length_right * float64(time.Second))
+							
+							s.Items[j].StartAt += shiftBy
+							s.Items[j].EndAt += shiftBy
+							
+							fmt.Printf(
+								"ShiftUnfit/#%d/pass=%d/j=%d/inc=%d/gap_length_right=%g/shiftBy=%d/Shifting subtitle right by %gs\n",
+								i,
+								pass,
+								j,
+								inc,
+								gap_length_right,
+								shiftBy,
+								gap_length_right,
+							)
+						
+							if j == i + inc {
+								space_required -= gap_length_right
+							}
+						}
+							
 						fmt.Printf(
-							"ShiftUnfit/#%d/pass=%d/j=%d/inc=%d/gap_length_left=%g/shiftBy=%d/Shifting subtitle left by %gs\n",
+							"ShiftUnfit/#%d/pass=%d/j=%d/inc=%d/gap_length_left=%g/gap_length_right=%g/space_required=%g\n",
 							i,
 							pass,
 							j,
 							inc,
 							gap_length_left,
-							shiftBy,
-							gap_length_left,
+							gap_length_right,
+							space_required,
 						)
 						
-						if j == i + inc {
-							space_required -= gap_length_left
+						if space_required <=0 {
+							break
 						}
 					}
-					
-					if gap_length_right > space_required {
-						gap_length_right = space_required
-					}
-					
-					if move_right &&
-					   gap_length_right > 0 &&
-					   space_required > 0 {
-						shiftBy := time.Duration(gap_length_right * float64(time.Second))
+				}
+				
+				for pass:=0; pass<3; pass++ {
+					for j := target;
+						j >=0 && j < len(s.Items) && j != target - inc && space_required > 0;
+						j -= inc {
 						
-						s.Items[j].StartAt += shiftBy
-						s.Items[j].EndAt += shiftBy
+						currItem := s.Items[j]
+						
+						current_length := currItem.GetLength()
+						minimum_length := math.Ceil(
+								float64(item.GetRuneCount(params)) /
+								float64(params.Speed) *
+							100.0 ) /
+						100.0
+						extra_length := current_length - minimum_length
+						if extra_length <= 0 {
+							continue
+						}
+						
+						if extra_length >= space_required {
+							extra_length = space_required
+						}
+						
+						if move_left &&
+						   space_required > 0 {
+							
+							resizeBy := time.Duration(extra_length * float64(time.Second))
+							s.Items[j].EndAt -= resizeBy
+							
+							fmt.Printf(
+								"ShiftUnfit/#%d/pass=%d/j=%d/move_left/extra_length=%g/resizeBy=%d/space_required=%g\n",
+								i,
+								pass,
+								j,
+								extra_length,
+								resizeBy,
+								space_required,
+							)
+							
+							if j == i + inc {
+								space_required -= extra_length
+							}
+						}
+						if move_right &&
+						   space_required > 0 {
+							resizeBy := time.Duration(extra_length * float64(time.Second))
+							s.Items[j].StartAt += resizeBy
+							
+							fmt.Printf(
+								"ShiftUnfit/#%d/pass=%d/j=%d/move_left/extra_length=%g/resizeBy=%d/space_required=%g\n",
+								i,
+								pass,
+								j,
+								extra_length,
+								resizeBy,
+								space_required,
+							)
+							
+							if j == i + inc {
+								space_required -= extra_length
+							}
+						}
+						
 						
 						fmt.Printf(
-							"ShiftUnfit/#%d/pass=%d/j=%d/inc=%d/gap_length_right=%g/shiftBy=%d/Shifting subtitle right by %gs\n",
+							"ShiftUnfit/#%d/pass=%d/j=%d/extra_length=%g/space_required=%g\n",
 							i,
 							pass,
 							j,
-							inc,
-							gap_length_right,
-							shiftBy,
-							gap_length_right,
+							extra_length,
+							space_required,
 						)
-					
-						if j == i + inc {
-							space_required -= gap_length_right
-						}
 					}
-						
-					fmt.Printf(
-						"ShiftUnfit/#%d/pass=%d/j=%d/inc=%d/gap_length_left=%g/gap_length_right=%g/space_required=%g\n",
-						i,
-						pass,
-						j,
-						inc,
-						gap_length_left,
-						gap_length_right,
-						space_required,
-					)
-					
-					if space_required <=0 {
-						break
-					}
-					
-					current_length := currItem.GetLength()
-					minimum_length := math.Ceil(
-							float64(item.GetRuneCount(params)) /
-							float64(params.Speed) *
-						100.0 ) /
-					100.0
-					extra_length := current_length - minimum_length
-					if extra_length <= 0 {
-						continue
-					}
-					
-					if extra_length >= space_required {
-						extra_length = space_required
-					}
-					
-					if move_left &&
-					   space_required > 0 {
-						resizeBy := time.Duration(extra_length * float64(time.Second))
-						s.Items[j].EndAt -= resizeBy
-						
-						if j == i + inc {
-							space_required -= extra_length
-						}
-					}
-					if move_right &&
-					   space_required > 0 {
-						resizeBy := time.Duration(extra_length * float64(time.Second))
-						s.Items[j].StartAt += resizeBy
-						
-						if j == i + inc {
-							space_required -= extra_length
-						}
-					}
-					
-					
-					fmt.Printf(
-						"ShiftUnfit/#%d/pass=%d/j=%d/extra_length=%g/space_required=%g\n",
-						i,
-						pass,
-						j,
-						extra_length,
-						space_required,
-					)
 				}
 			}
 		}
